@@ -45,13 +45,31 @@ def find_money_after_label(text, labels):
 
         for label in labels:
             if re.search(label, line_clean, flags=re.I):
-                # Find money value anywhere after label on same line
                 matches = re.findall(money_pattern, line_clean, flags=re.I)
-                if matches:
-                    return parse_money(matches[-1])
+
+                # Remove percentage numbers like 18 from GST (18%)
+                clean_matches = []
+                for m in matches:
+                    if re.search(rf"{re.escape(m)}\s*%", line_clean):
+                        continue
+                    clean_matches.append(m)
+
+                if clean_matches:
+                    return parse_money(clean_matches[-1])
 
     return None
 
+def extract_total(text):
+    labels = [
+        r"Grand\s*Total",
+        r"Total\s*Due",
+        r"Amount\s*Due",
+        r"Invoice\s*Total",
+        r"Final\s*Amount",
+        r"Total\s*Amount",
+        r"TOTAL",
+    ]
+    return find_money_after_label(text, labels)
 
 def extract_invoice_no(text):
     lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -158,29 +176,47 @@ def extract_currency(text):
 def extract_amount(text):
     labels = [
         r"Sub\s*total",
+        r"Sub-total",
         r"Subtotal",
         r"Amount\s*before\s*tax",
+        r"Pre[-\s]*tax\s*amount",
+        r"Pre[-\s]*tax\s*total",
+        r"Before\s*tax",
+        r"Taxable\s*amount",
         r"Taxable\s*value",
+        r"Taxable\s*total",
         r"Net\s*amount",
+        r"Net\s*total",
         r"Base\s*amount",
+        r"Basic\s*amount",
+        r"Items?\s*total",
+        r"Goods\s*total",
+        r"Services?\s*total",
+        r"Charges\s*before\s*tax",
     ]
-    return find_money_after_label(text, labels)
 
+    amount = find_money_after_label(text, labels)
+    if amount is not None:
+        return amount
 
-def extract_tax(text):
-    # First handle CGST + SGST style
-    cgst = find_money_after_label(text, [r"CGST"])
-    sgst = find_money_after_label(text, [r"SGST"])
+    # Fallback: amount = total - tax
+    total = extract_total(text)
+    tax = extract_tax(text)
 
-    if cgst is not None or sgst is not None:
-        return round((cgst or 0) + (sgst or 0), 2)
+    if total is not None and tax is not None:
+        return round(total - tax, 2)
+
+    return None
 
     labels = [
         r"IGST",
+        r"CGST",
+        r"SGST",
         r"GST",
         r"VAT",
-        r"Tax",
+        r"Tax\s*amount",
         r"Sales\s*Tax",
+        r"Tax",
     ]
     return find_money_after_label(text, labels)
 
