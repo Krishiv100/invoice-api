@@ -54,17 +54,37 @@ def find_money_after_label(text, labels):
 
 
 def extract_invoice_no(text):
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
     patterns = [
-        r"Invoice\s*(?:No|Number|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-_]+)",
-        r"Inv\s*(?:No|#)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-_]+)",
-        r"Bill\s*(?:No|Number|#)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-_]+)",
-        r"Ref\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-_]+)",
+        r"\bInvoice\s*(?:No\.?|Number|#|ID)?\s*[:\-]\s*([A-Z0-9][A-Z0-9\/\-_]+)",
+        r"\bInvoice\s*(?:No\.?|Number|#|ID)\s+([A-Z0-9][A-Z0-9\/\-_]+)",
+        r"\bInv\s*(?:No\.?|Number|#|ID)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-_]+)",
+        r"\bBill\s*(?:No\.?|Number|#|ID)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-_]+)",
+        r"\bReceipt\s*(?:No\.?|Number|#|ID)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-_]+)",
+        r"\bRef(?:erence)?\s*[:\-]\s*([A-Z0-9][A-Z0-9\/\-_]+)",
+        r"\bOrder\s*(?:No\.?|Number|#|ID)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\/\-_]+)",
     ]
 
-    for pattern in patterns:
+    for line in lines:
+        for pattern in patterns:
+            match = re.search(pattern, line, flags=re.I)
+            if match:
+                value = match.group(1).strip()
+                value = value.rstrip(".,;")
+                return value
+
+    # Fallback: find invoice-like codes such as GX-9087, INV-2026-0041, NS/2026/778
+    code_patterns = [
+        r"\b[A-Z]{2,6}-\d{3,8}\b",
+        r"\b[A-Z]{2,6}/\d{4}/\d{2,8}\b",
+        r"\bINV-\d{4}-\d{3,8}\b",
+    ]
+
+    for pattern in code_patterns:
         match = re.search(pattern, text, flags=re.I)
         if match:
-            return match.group(1).strip()
+            return match.group(0).strip()
 
     return None
 
